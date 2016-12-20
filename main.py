@@ -202,6 +202,7 @@ class TitleBoard(QtGui.QFrame):
         self.state = DYNAMIC
         self.parent.convertState(self.state)
 
+
     # SCHEDULE
     def _btn2_cb(self):
         self.state = SCHEDULE
@@ -225,6 +226,16 @@ class TitleBoard(QtGui.QFrame):
         painter = QtGui.QPainter(self)
         rect = self.contentsRect()
         painter.fillRect(rect, 'white')
+        if self.state == DYNAMIC:
+            painter.fillRect(345, 10, 75, 40, '#99ccff')
+        elif self.state == SCHEDULE:
+            painter.fillRect(425, 10, 75, 40, '#99ccff')
+        elif self.state == MESSAGE :
+            painter.fillRect(505, 10, 75, 40, '#99ccff')
+        else:
+            painter.fillRect(585, 10, 75, 40, '#99ccff')
+
+
 
     def drawSquare(self, painter, x, y, shape):
         colorTable = [0x000000, 0xCC6666, 0x66CC66, 0x6666CC,
@@ -248,11 +259,11 @@ class TitleBoard(QtGui.QFrame):
 if __name__ == "__main__":
 
     #dynamicdata()
-    affairdata()
+    #affairdata()
     conn = sqlite3.connect('test.db')
     app = QtGui.QApplication(sys.argv)
 
-    main = mainWindow(MEMBER)
+    main = mainWindow(SCHEDULE)
 
     main.show_and_raise()
     sys.exit(app.exec_())

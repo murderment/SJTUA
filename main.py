@@ -4,22 +4,26 @@
 import sys
 from PySide import QtCore, QtGui
 import sqlite3
+from sett import *
 from quitdialog import *
 from member import *
 from dynamic import *
 from message import *
 from schedule import *
+# from signin import *
 
 # some bug here convert state
-INITBUG, DYNAMIC, SCHEDULE, MESSAGE, MEMBER = range(5)
+INITBUG, DYNAMIC, SCHEDULE, MESSAGE, MEMBER, SETTING, BACK = range(7)
 winState = INITBUG
 assName = "SJTU_CC"
 
 
 class mainWindow(QtGui.QMainWindow):
-    def __init__(self, state):
+    def __init__(self, associate, state):
         super(mainWindow, self).__init__()
         self.state = state
+        self.prevstate = INITBUG
+        self.associate = associate
         self.settings = load_settings(settings_path)
 
         self.w = 1000
@@ -40,14 +44,28 @@ class mainWindow(QtGui.QMainWindow):
 
         self.boards = []
 
-        self.TitleBoard = TitleBoard(self, assName, winState)
+        self.TitleBoard = TitleBoard(self, self.associate)
+        self.TitleBoard.state = self.state
+        self.EmailEditor = EmailEditor(self)
+        self.MessageRecord = MessageRecord(self)
+        self.DialogList = DialogList(self)
         self.DynamicList = DynamicList(self)
         self.MemberLocate = MemberLocate(self)
         self.Calendar = Calendar(self)
         self.AffairList = AffairList(self)
-        self.boards.extend([self.MemberLocate,self.DynamicList,self.Calendar,self.AffairList])
-        self.convertState(state)  # bug if self.state
+        self.SettingForm = SettingForm(self)
+        self.boards.extend([self.MemberLocate,self.DynamicList,self.Calendar,self.AffairList,
+                            self.EmailEditor,self.DialogList,self.MessageRecord,self.SettingForm])
+        t = Setting()
+        state = t.load("loadstate")
+        self.convertState(state)
 
+        self.pbar = QtGui.QProgressBar(self)
+        self.pbar.setGeometry(0, 50, 1030, 2)
+        self.pbar.setMaximum(0)
+        self.pbar.setMinimum(0)
+        self.pbar.hide()
+        self.show()
 
     def center(self):
         screen = QtGui.QDesktopWidget().screenGeometry()
@@ -59,9 +77,8 @@ class mainWindow(QtGui.QMainWindow):
         self.show()
         self.raise_()
 
-    def convertState(self, state):
+    def convertState(self, state = BACK):
         # or some bug here
-        self.state = state
         for board in self.boards:
             board.hide()
         self.boards = []
@@ -73,17 +90,26 @@ class mainWindow(QtGui.QMainWindow):
             self.boards.append(self.AffairList)
             pass
         elif state == MESSAGE:
-            #self.boards.append(self.DialogList)
-            #self.boards.append(self.MessageRecord)
-            #self.boards.append(self.EmailEditor)
+            self.boards.append(self.DialogList)
+            self.boards.append(self.MessageRecord)
+            self.boards.append(self.EmailEditor)
             pass
         elif state == MEMBER:
             self.boards.append(self.MemberLocate)
             #self.boards.append(self.MemberInfo)
             pass
+        elif state == SETTING:
+            self.boards.append(self.SettingForm)
+            self.prevstate = self.state
+        elif state == BACK:
+            self.convertState(self.prevstate)
         for board in self.boards:
             board.show()
+        self.state = state
         self.update()
+
+    def dispose(self, cmd):
+        pass
 
     @staticmethod
     def confirm_quit(main_win, close_evt=None):
@@ -133,18 +159,18 @@ class mainWindow(QtGui.QMainWindow):
 
 
 class TitleBoard(QtGui.QFrame):
-    def __init__(self, parent, assName, state):
+    def __init__(self, parent, associate):
         QtGui.QFrame.__init__(self, parent)
         self.parent = parent
-        self.assName = assName
-        self.state = state
+        self.associate = associate
+        self.state = INITBUG
         self.x, self.y, self.w, self.h = 0, 0, 1000, 50
         self.resize(self.w, self.h)
         self.rect = QtCore.QRect(self.x, self.y, self.w, self.h)
         self.setFrameRect(self.rect)
         self.initUI()
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
-        parent.convertState(self.state)
+        # parent.convertState(self.state)
         self.update()
 
     def initUI(self):
@@ -152,7 +178,7 @@ class TitleBoard(QtGui.QFrame):
         font.setFamily("Calibri")
         font.setPointSize(20)
         self.cbx = QtGui.QComboBox(self)
-        self.cbx.addItem(assName)
+        self.cbx.addItem(self.associate.name)
         self.cbx.addItem(u"注销")
         self.cbx.setFont(font)
         self.cbx.currentIndexChanged.connect(self._cbx_currentIndexChanged)
@@ -192,11 +218,6 @@ class TitleBoard(QtGui.QFrame):
         #sys.exit(app.exec_())
         pass
 
-    #INITBUG
-    def _btn0_cb(self):
-        self.state = INITBUG
-        self.parent.convertState(self.state)
-
     # DYNAMIC
     def _btn1_cb(self):
         self.state = DYNAMIC
@@ -219,12 +240,24 @@ class TitleBoard(QtGui.QFrame):
 
     # PLUS
     def _tbtn_cb(self):
-        self.update()
+        self.state = SETTING
+        self.parent.convertState(self.state)
 
     def paintEvent(self, event):
         painter = QtGui.QPainter(self)
         rect = self.contentsRect()
+        color = 'white'
         painter.fillRect(rect, 'white')
+
+        if self.state == DYNAMIC:
+            painter.fillRect(345, 10, 75, 40, '#99ccff')
+        elif self.state == SCHEDULE:
+            painter.fillRect(425, 10, 75, 40, '#99ccff')
+        elif self.state == MESSAGE:
+            painter.fillRect(505, 10, 75, 40, '#99ccff')
+        elif self.state == MEMBER:
+            painter.fillRect(585, 10, 75, 40, '#99ccff')
+
 
     def drawSquare(self, painter, x, y, shape):
         colorTable = [0x000000, 0xCC6666, 0x66CC66, 0x6666CC,
@@ -245,16 +278,29 @@ class TitleBoard(QtGui.QFrame):
                          y + self.squareHeight() - 1, x + self.squareWidth() - 1, y + 1)
 
 
-if __name__ == "__main__":
+class Associate:
+    def __init__(self, name):
+        conn = sqlite3.connect(name+'.db')
+        cu = conn.cursor()
+        cu.execute("select name, phone, email from member where pid=10000")
+        for row in cu:
+            name, phone, email = row
+        self.name = name
+        self.phone = phone
+        self.email = email
+        self.master = ""
 
-    #dynamicdata()
-    affairdata()
-    conn = sqlite3.connect('test.db')
+
+
+
+
+
+if __name__ == "__main__":
+    ass = Associate("test")
     app = QtGui.QApplication(sys.argv)
 
-    main = mainWindow(MEMBER)
+    main = mainWindow(ass, MESSAGE)
 
     main.show_and_raise()
     sys.exit(app.exec_())
-    conn.close()
 
